@@ -4,8 +4,12 @@ import { io } from "socket.io-client";
 
 const localVideo = ref(null);
 const remoteVideo = ref(null);
-const socket = io("https://degan-live.up.railway.app", { transports: ["websocket"] });
 
+// Connect using the Railway URL and explicitly set the path.
+const socket = io("https://degan-live.up.railway.app", {
+  path: "/socket.io",
+  transports: ["websocket"],
+});
 const classId = "12345";
 let localStream;
 let peerConnection;
