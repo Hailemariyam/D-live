@@ -5,11 +5,18 @@ import { io } from "socket.io-client";
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-// Connect using the Railway URL and explicitly set the path.
-const socket = io("https://degan-live.up.railway.app", {
-  path: "/socket.io",
-  transports: ["websocket"],
+const socket = io("wss://degan-live.up.railway.app", {
+  transports: ["websocket", "polling"],
+  withCredentials: true,
 });
+
+socket.on("connect", () => {
+  console.log("Connected to WebSocket server");
+});
+socket.on("disconnect", () => {
+  console.log("Disconnected from WebSocket server");
+});
+
 const classId = "12345";
 let localStream;
 let peerConnection;
