@@ -3,8 +3,12 @@ const { Server } = require("socket.io");
 
 const server = http.createServer();
 const io = new Server(server, {
-  cors: { origin: "*" }, // Allow all origins for testing
+  cors: {
+    origin: ["https://degan-live.vercel.app/"],
+    methods: ["GET", "POST"],
+  }
 });
+
 
 const users = {};
 
@@ -19,9 +23,12 @@ io.on("connection", (socket) => {
     io.to(classId).emit("user-joined", socket.id);
   });
 
+
   socket.on("offer", ({ classId, offer }) => {
+    console.log(`Received offer from ${socket.id}, forwarding to class ${classId}`);
     socket.to(classId).emit("offer", offer);
   });
+
 
   socket.on("answer", ({ classId, answer }) => {
     socket.to(classId).emit("answer", answer);

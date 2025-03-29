@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 
 const localVideo = ref(null);
 const remoteVideo = ref(null);
-const socket = io("http://192.168.0.111:3000", { transports: ["websocket"] });
+const socket = io("https://degan-live.up.railway.app", { transports: ["websocket"] });
 
 const classId = "12345";
 let localStream;
@@ -52,13 +52,15 @@ async function startCall() {
 }
 
 // 📌 Handle Incoming WebRTC Offers
+
 socket.on("offer", async (offer) => {
+  console.log("Received offer:", offer);
   if (!peerConnection) createPeerConnection();
 
   await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
-
+  console.log("Sending answer:", answer);
   socket.emit("answer", { classId, answer });
 });
 
