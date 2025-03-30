@@ -69,7 +69,6 @@ async function startCall() {
 }
 
 // 📌 Handle Incoming WebRTC Offers
-
 socket.on("offer", async (offer) => {
   console.log("Received offer:", offer);
   if (!peerConnection) createPeerConnection();
