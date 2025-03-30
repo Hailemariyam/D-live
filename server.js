@@ -1,10 +1,9 @@
 const http = require("http");
 const { Server } = require("socket.io");
 
-const PORT = process.env.PORT || 3000; // Railway assigns a dynamic port
-const HOST = "0.0.0.0"; // Allow external access
-
+const PORT = process.env.PORT || 8080; // Use Railway's assigned port
 const server = http.createServer();
+
 const io = new Server(server, {
   cors: {
     origin: ["https://degan-live.vercel.app"], // Your frontend URL
@@ -37,6 +36,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ WebSocket Server running on port ${PORT}`);
 });
