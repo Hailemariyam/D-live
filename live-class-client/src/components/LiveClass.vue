@@ -5,17 +5,19 @@ import { io } from "socket.io-client";
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
+// Explicitly specify the same path as on the server
 const socket = io("https://degan-live.up.railway.app", {
+  path: "/socket.io",
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
+
 socket.on("connect_error", (error) => {
   console.error("Connection error:", error);
 });
 socket.on("connect_timeout", (error) => {
   console.error("Connection timeout:", error);
 });
-
 socket.on("connect", () => {
   console.log("Connected to WebSocket server");
 });
@@ -31,7 +33,7 @@ const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-// 📌 Capture Local Video
+// Capture Local Video
 async function startLocalStream() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -41,16 +43,13 @@ async function startLocalStream() {
   }
 }
 
-// 📌 Initialize WebRTC
+// Initialize WebRTC
 function createPeerConnection() {
   peerConnection = new RTCPeerConnection(ICE_SERVERS);
-
   localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
   peerConnection.ontrack = (event) => {
     remoteVideo.value.srcObject = event.streams[0];
   };
-
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("ice-candidate", { classId, candidate: event.candidate });
@@ -58,21 +57,18 @@ function createPeerConnection() {
   };
 }
 
-// 📌 Send Offer when User Joins
+// Send Offer when User Joins
 async function startCall() {
   createPeerConnection();
-
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-
   socket.emit("offer", { classId, offer });
 }
 
-// 📌 Handle Incoming WebRTC Offers
+// Handle Incoming WebRTC Offers
 socket.on("offer", async (offer) => {
   console.log("Received offer:", offer);
   if (!peerConnection) createPeerConnection();
-
   await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
@@ -80,23 +76,22 @@ socket.on("offer", async (offer) => {
   socket.emit("answer", { classId, answer });
 });
 
-// 📌 Handle WebRTC Answers
+// Handle WebRTC Answers
 socket.on("answer", async (answer) => {
   await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
-// 📌 Handle ICE Candidates
+// Handle ICE Candidates
 socket.on("ice-candidate", async (candidate) => {
   if (peerConnection) {
     await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
   }
 });
 
-// 📌 Join Class & Start Local Stream
+// Join Class & Start Local Stream
 onMounted(async () => {
   await startLocalStream();
   socket.emit("join-class", { classId });
-
   // Start call only if there are 2+ users
   socket.on("user-joined", async () => {
     if (!peerConnection) {
@@ -105,7 +100,7 @@ onMounted(async () => {
   });
 });
 
-// 📌 Clean Up on Leave
+// Clean Up on Leave
 onUnmounted(() => {
   socket.emit("leave-class", { classId });
   socket.disconnect();
@@ -116,7 +111,6 @@ onUnmounted(() => {
 <template>
   <div class="p-4">
     <h2 class="text-xl font-bold">Live Class</h2>
-
     <div class="flex">
       <div class="w-2/3 flex gap-4">
         <div>

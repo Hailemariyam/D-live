@@ -1,3 +1,6 @@
+
+
+
 const http = require("http");
 const { Server } = require("socket.io");
 
@@ -5,8 +8,12 @@ const PORT = process.env.PORT || 8080; // Use Railway's assigned port
 const server = http.createServer();
 
 const io = new Server(server, {
+  path: "/socket.io", // explicitly set the path
   cors: {
-    origin: ["https://degan-live.vercel.app", "https://degan-live-production.up.railway.app"], // Allow both front-end URLs
+    origin: [
+      "https://degan-live.vercel.app",
+      "https://degan-live-production.up.railway.app"
+    ],
     methods: ["GET", "POST"],
   },
 });
