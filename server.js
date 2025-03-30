@@ -37,6 +37,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, () => {
   console.log(`✅ WebSocket Server running on port ${PORT}`);
 });

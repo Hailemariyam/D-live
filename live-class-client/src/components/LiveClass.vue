@@ -5,9 +5,15 @@ import { io } from "socket.io-client";
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-const socket = io("wss://degan-live.up.railway.app", {
+const socket = io("https://degan-live.up.railway.app", {
   transports: ["websocket", "polling"],
   withCredentials: true,
+});
+socket.on("connect_error", (error) => {
+  console.error("Connection error:", error);
+});
+socket.on("connect_timeout", (error) => {
+  console.error("Connection timeout:", error);
 });
 
 socket.on("connect", () => {
