@@ -6,7 +6,7 @@ const server = http.createServer();
 
 const io = new Server(server, {
   cors: {
-    origin: ["https://degan-live.vercel.app", "https://degan-live.up.railway.app"], // Allow both front-end URLs
+    origin: ["https://degan-live.vercel.app", "https://degan-live-production.up.railway.app"], // Allow both front-end URLs
     methods: ["GET", "POST"],
   },
 });
