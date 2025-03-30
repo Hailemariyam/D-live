@@ -5,8 +5,8 @@ import { io } from "socket.io-client";
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-// Explicitly specify the same path as on the server
-const socket = io("https://degan-live.up.railway.app", {
+// Updated to match the Railway domain
+const socket = io("https://degan-live-production.up.railway.app", {
   path: "/socket.io",
   transports: ["websocket", "polling"],
   withCredentials: true,
@@ -47,9 +47,11 @@ async function startLocalStream() {
 function createPeerConnection() {
   peerConnection = new RTCPeerConnection(ICE_SERVERS);
   localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
   peerConnection.ontrack = (event) => {
     remoteVideo.value.srcObject = event.streams[0];
   };
+
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("ice-candidate", { classId, candidate: event.candidate });
@@ -92,6 +94,7 @@ socket.on("ice-candidate", async (candidate) => {
 onMounted(async () => {
   await startLocalStream();
   socket.emit("join-class", { classId });
+
   // Start call only if there are 2+ users
   socket.on("user-joined", async () => {
     if (!peerConnection) {
