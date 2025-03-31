@@ -1,18 +1,24 @@
+const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 
-const PORT = process.env.PORT || 8080; // Railway will set the PORT to 8080
-const server = http.createServer();
+const app = express();
+const PORT = process.env.PORT || 8080;
+
+const server = http.createServer(app);
 
 const io = new Server(server, {
-  path: "/socket.io",
   cors: {
-    origin: [
-      "https://degan-live-production.up.railway.app", // Updated Railway domain
-      "https://degan-live.vercel.app" // if needed
-    ],
+    origin: ["https://degan-live.vercel.app"],
     methods: ["GET", "POST"],
+    transports: ["websocket", "polling"],
+    credentials: true,
   },
+});
+
+// Serve a simple homepage for testing
+app.get("/", (req, res) => {
+  res.send("WebSocket Server is running");
 });
 
 io.on("connection", (socket) => {
@@ -21,25 +27,32 @@ io.on("connection", (socket) => {
   socket.on("join-class", ({ classId }) => {
     socket.join(classId);
     io.to(classId).emit("user-joined", socket.id);
+    console.log(`User ${socket.id} joined class ${classId}`);
   });
 
-  socket.on("offer", ({ classId, offer }) => {
-    socket.to(classId).emit("offer", offer);
+  socket.on("offer", ({ classId, offer, senderId }) => {
+    socket.to(classId).emit("offer", { offer, senderId });
   });
 
-  socket.on("answer", ({ classId, answer }) => {
-    socket.to(classId).emit("answer", answer);
+  socket.on("answer", ({ classId, answer, senderId }) => {
+    socket.to(classId).emit("answer", { answer, senderId });
   });
 
-  socket.on("ice-candidate", ({ classId, candidate }) => {
-    socket.to(classId).emit("ice-candidate", candidate);
+  socket.on("ice-candidate", ({ classId, candidate, senderId }) => {
+    socket.to(classId).emit("ice-candidate", { candidate, senderId });
+  });
+
+  socket.on("leave-class", ({ classId }) => {
+    socket.leave(classId);
+    io.to(classId).emit("user-left", socket.id);
   });
 
   socket.on("disconnect", () => {
     console.log(`User disconnected: ${socket.id}`);
+    io.emit("user-disconnected", socket.id);
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, () => {
   console.log(`✅ WebSocket Server running on port ${PORT}`);
 });
