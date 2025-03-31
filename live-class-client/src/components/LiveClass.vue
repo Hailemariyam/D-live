@@ -13,6 +13,9 @@ const socket = io("https://degan-live-production.up.railway.app", {
 const classId = "12345";
 let localStream;
 let peerConnection;
+let iceCandidateQueue = [];
+let isRemoteDescriptionSet = false;
+
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -60,6 +63,19 @@ socket.on("offer", async ({ offer, senderId }) => {
   if (!peerConnection) createPeerConnection();
 
   await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+  isRemoteDescriptionSet = true;
+
+  // Add buffered ICE candidates
+  while (iceCandidateQueue.length > 0) {
+    const candidate = iceCandidateQueue.shift();
+    try {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log("Buffered ICE candidate added successfully.");
+    } catch (error) {
+      console.error("Error adding buffered ICE candidate", error);
+    }
+  }
+
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
 
@@ -69,14 +85,21 @@ socket.on("offer", async ({ offer, senderId }) => {
 // 🟢 Handle Incoming Answer
 socket.on("answer", async ({ answer }) => {
   await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+  isRemoteDescriptionSet = true;
 });
 
 // 🟢 Handle Incoming ICE Candidate
 socket.on("ice-candidate", async ({ candidate }) => {
-  try {
-    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-  } catch (error) {
-    console.error("Error adding received ICE candidate", error);
+  if (isRemoteDescriptionSet) {
+    try {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log("ICE candidate added successfully.");
+    } catch (error) {
+      console.error("Error adding received ICE candidate", error);
+    }
+  } else {
+    iceCandidateQueue.push(candidate);
+    console.log("Buffered ICE candidate.");
   }
 });
 
