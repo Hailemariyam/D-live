@@ -9,7 +9,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: ["https://degan-live.vercel.app"],
+    origin: ["https://tubular-salmiakki-aae177.netlify.app/"],
     methods: ["GET", "POST"],
     transports: ["websocket", "polling"],
     credentials: true,
