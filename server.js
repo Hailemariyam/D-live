@@ -9,7 +9,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: ["https://tubular-salmiakki-aae177.netlify.app/"],
+    origin: ["https://degan-live.netlify.app/"],
     methods: ["GET", "POST"],
     transports: ["websocket", "polling"],
     credentials: true,
