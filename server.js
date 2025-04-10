@@ -94,10 +94,10 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/v1/live/one-to-one", (req, res) => {
-  res.json({ socketUrl: "https://degan-live-production.up.railway.app/one-to-one" });
+  res.json({ socketUrl: "https://d-live-production.up.railway.app/one-to-one" });
 });
 app.get("/api/v1/live/one-to-many", (req, res) => {
-  res.json({ socketUrl: "https://degan-live-production.up.railway.app/one-to-many" });
+  res.json({ socketUrl: "https://d-live-production.up.railway.app/one-to-many" });
 });
 
 

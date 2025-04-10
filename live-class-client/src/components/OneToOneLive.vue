@@ -6,7 +6,7 @@ const localVideo = ref(null);
 const remoteVideo = ref(null);
 
 // Connect to the one-to-one namespace
-const socket = io("https://degan-live-production.up.railway.app/one-to-one", {
+const socket = io("https://d-live-production.up.railway.app/one-to-one", {
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
