@@ -1,16 +1,18 @@
-<!-- <script setup>
+<script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
 
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-const socket = io("https://degan-live-production.up.railway.app", {
+// Connect to the one-to-one namespace
+const socket = io("https://degan-live-production.up.railway.app/one-to-one", {
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
 
-const classId = "12345";
+// Use a room identifier for the one-to-one call. This could be a unique session ID.
+const roomId = "oneToOne-room-123";
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -20,7 +22,7 @@ const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-// 🟢 Capture Local Video Stream
+// Capture the local media stream
 async function startLocalStream() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -30,7 +32,7 @@ async function startLocalStream() {
   }
 }
 
-// 🟢 Create WebRTC Peer Connection
+// Create a WebRTC PeerConnection and add local tracks
 function createPeerConnection() {
   peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
@@ -42,22 +44,22 @@ function createPeerConnection() {
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-      socket.emit("ice-candidate", { classId, candidate: event.candidate, senderId: socket.id });
+      socket.emit("ice-candidate", { classId: roomId, candidate: event.candidate });
     }
   };
 }
 
-// 🟢 Initiate Video Call
+// Start call by creating offer and sending it via Socket.IO
 async function startCall() {
   createPeerConnection();
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
 
-  socket.emit("offer", { classId, offer, senderId: socket.id });
+  socket.emit("offer", { classId: roomId, offer });
 }
 
-// 🟢 Handle Incoming Offer
+// Handle incoming offer
 socket.on("offer", async ({ offer, senderId }) => {
   console.log("Received offer from:", senderId);
   if (!peerConnection) createPeerConnection();
@@ -65,12 +67,11 @@ socket.on("offer", async ({ offer, senderId }) => {
   await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
   isRemoteDescriptionSet = true;
 
-  // Add buffered ICE candidates
-  while (iceCandidateQueue.length > 0) {
+  // Process any buffered ICE candidates
+  while (iceCandidateQueue.length) {
     const candidate = iceCandidateQueue.shift();
     try {
       await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log("Buffered ICE candidate added successfully.");
     } catch (error) {
       console.error("Error adding buffered ICE candidate", error);
     }
@@ -79,34 +80,32 @@ socket.on("offer", async ({ offer, senderId }) => {
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
 
-  socket.emit("answer", { classId, answer, senderId: socket.id });
+  socket.emit("answer", { classId: roomId, answer });
 });
 
-// 🟢 Handle Incoming Answer
+// Handle incoming answer
 socket.on("answer", async ({ answer }) => {
   await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
   isRemoteDescriptionSet = true;
 });
 
-// 🟢 Handle Incoming ICE Candidate
+// Handle incoming ICE candidate
 socket.on("ice-candidate", async ({ candidate }) => {
   if (isRemoteDescriptionSet) {
     try {
       await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log("ICE candidate added successfully.");
     } catch (error) {
       console.error("Error adding received ICE candidate", error);
     }
   } else {
     iceCandidateQueue.push(candidate);
-    console.log("Buffered ICE candidate.");
   }
 });
 
-// 🟢 Join Class
+// Join room and start the call when a user joins the room
 onMounted(async () => {
   await startLocalStream();
-  socket.emit("join-class", { classId });
+  socket.emit("join-class", { classId: roomId });
 
   socket.on("user-joined", async (userId) => {
     console.log(`User joined: ${userId}`);
@@ -125,9 +124,9 @@ onMounted(async () => {
   });
 });
 
-// 🟢 Clean Up on Component Unmount
+// Clean up resources when component unmounts
 onUnmounted(() => {
-  socket.emit("leave-class", { classId });
+  socket.emit("leave-class", { classId: roomId });
   socket.disconnect();
   if (peerConnection) peerConnection.close();
 });
@@ -135,52 +134,16 @@ onUnmounted(() => {
 
 <template>
   <div class="p-4">
-    <h2 class="text-xl font-bold">Live Class</h2>
-
-    <div class="flex">
-      <div class="w-2/3 flex gap-4">
-        <div>
-          <h3 class="text-lg font-semibold">Local User</h3>
-          <video ref="localVideo" autoplay playsinline muted class="w-full border rounded"></video>
-        </div>
-        <div>
-          <h3 class="text-lg font-semibold">Remote User</h3>
-          <video ref="remoteVideo" autoplay playsinline class="w-full border rounded"></video>
-        </div>
+    <h2 class="text-xl font-bold">One-to-One Video Call</h2>
+    <div class="flex gap-4">
+      <div>
+        <h3 class="text-lg font-semibold">Local User</h3>
+        <video ref="localVideo" autoplay playsinline muted class="w-full border rounded"></video>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold">Remote User</h3>
+        <video ref="remoteVideo" autoplay playsinline class="w-full border rounded"></video>
       </div>
     </div>
   </div>
-</template> -->
-
-
-
-<template>
-  <div class="live-container p-4">
-    <h1 class="mb-6 text-2xl font-bold text-center">Degan Live: One-to-One & One-to-Many</h1>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <section>
-        <h2 class="text-xl font-semibold mb-2">One-to-One Video Call</h2>
-        <!-- One-to-One Component -->
-        <OneToOneLive />
-      </section>
-      <section>
-        <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
-        <!-- One-to-Many Component -->
-        <OneToManyLive />
-      </section>
-    </div>
-  </div>
 </template>
-
-<script setup>
-import OneToOneLive from "./OneToOneLive.vue";
-import OneToManyLive from "./OneToManyLive.vue";
-</script>
-
-<style scoped>
-/* You can add more styles as needed */
-.live-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-</style>
