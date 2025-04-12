@@ -1,4 +1,4 @@
-module.exports = function(io) {
+export default function(io) {
     io.on("connection", (socket) => {
       console.log(`🔵 [One-to-One] User connected: ${socket.id}`);
 

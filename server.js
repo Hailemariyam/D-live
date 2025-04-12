@@ -63,8 +63,8 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 
-const oneToOneHandler = require("./socket/oneToOneHandler");
-const oneToManyHandler = require("./socket/oneToManyHandler");
+const oneToOneHandler = require("./socket/oneToOneHandler").default;
+const oneToManyHandler = require("./socket/oneToManyHandler").default;
 
 const app = express();
 const server = http.createServer(app);
@@ -72,7 +72,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     // Modify the origin value as needed.
-    origin: ["https://degan-livestream.vercel.app/"],
+    origin: ["https://live-class-client.vercel.app/"],
     methods: ["GET", "POST"],
     transports: ["websocket", "polling"],
     credentials: true,
@@ -99,6 +99,7 @@ app.get("/api/v1/live/one-to-one", (req, res) => {
 app.get("/api/v1/live/one-to-many", (req, res) => {
   res.json({ socketUrl: "https://d-live-production.up.railway.app/one-to-many" });
 });
+
 
 
 // Start the server
