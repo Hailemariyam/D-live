@@ -61,46 +61,50 @@
 
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 
-const oneToOneHandler = require("./socket/oneToOneHandler").default;
-const oneToManyHandler = require("./socket/oneToManyHandler").default;
+const oneToOneHandler = require("./socket/oneToOneHandler");
+const oneToManyHandler = require("./socket/oneToManyHandler");
+
 
 const app = express();
 const server = http.createServer(app);
 
+// Setup CORS for production domain
 const io = new Server(server, {
   cors: {
-    // Modify the origin value as needed.
-    origin: ["https://live-class-client.vercel.app/"],
+    origin: ["https://dlive.degantechnologies.com"],
     methods: ["GET", "POST"],
     transports: ["websocket", "polling"],
     credentials: true,
   },
 });
 
-// Set up Socket.IO namespaces:
-// One-to-One namespace
+// Serve frontend (Vue app build)
+const frontendPath = path.join(__dirname, "live-class-client/dist");
+app.use(express.static(frontendPath));
+
+// Frontend fallback (for Vue Router)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+// Set up Socket.IO namespaces
 const oneToOneNamespace = io.of("/one-to-one");
 oneToOneHandler(oneToOneNamespace);
 
-// One-to-Many namespace
 const oneToManyNamespace = io.of("/one-to-many");
 oneToManyHandler(oneToManyNamespace);
 
-// Serve a simple homepage for testing
-app.get("/", (req, res) => {
-  res.send("Degan Live WebSocket Server is running");
-});
-
+// API endpoints for frontend to fetch WebSocket URLs
 app.get("/api/v1/live/one-to-one", (req, res) => {
-  res.json({ socketUrl: "https://d-live-production.up.railway.app/one-to-one" });
+  res.json({ socketUrl: "https://dlive.degantechnologies.com/one-to-one" });
 });
+
 app.get("/api/v1/live/one-to-many", (req, res) => {
-  res.json({ socketUrl: "https://d-live-production.up.railway.app/one-to-many" });
+  res.json({ socketUrl: "https://dlive.degantechnologies.com/one-to-many" });
 });
-
-
 
 // Start the server
 const PORT = process.env.PORT || 8080;
