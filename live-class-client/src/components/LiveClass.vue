@@ -1,4 +1,4 @@
-<script setup>
+<!-- <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
 
@@ -150,4 +150,36 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+</template> -->
+
+
+<template>
+  <div class="live-container p-4">
+    <h1 class="mb-6 text-2xl font-bold text-center">Degan Live: One-to-One & One-to-Many</h1>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <section>
+        <h2 class="text-xl font-semibold mb-2">One-to-One Video Call</h2>
+        <!-- One-to-One Component -->
+        <OneToOneLive />
+      </section>
+      <section>
+        <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
+        <!-- One-to-Many Component -->
+        <OneToManyLive />
+      </section>
+    </div>
+  </div>
 </template>
+
+<script setup>
+import OneToOneLive from "./OneToOneLive.vue";
+import OneToManyLive from "./OneToManyLive.vue";
+</script>
+
+<style scoped>
+/* You can add more styles as needed */
+.live-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+</style>
