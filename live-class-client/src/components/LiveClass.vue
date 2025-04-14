@@ -165,7 +165,7 @@ onUnmounted(() => {
       <section>
         <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
         <!-- One-to-Many Component -->
-        <OneToManyLive />
+        <!-- <OneToManyLive /> -->
       </section>
     </div>
   </div>
@@ -173,7 +173,7 @@ onUnmounted(() => {
 
 <script setup>
 import OneToOneLive from "./OneToOneLive.vue";
-import OneToManyLive from "./OneToManyLive.vue";
+// import OneToManyLive from "./OneToManyLive.vue";
 </script>
 
 <style scoped>
