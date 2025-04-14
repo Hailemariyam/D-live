@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-const socket = io("https://degan-live-production.up.railway.app", {
+const socket = io("https://d-live.onrender.com", {
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
