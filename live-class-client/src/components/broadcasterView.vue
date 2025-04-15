@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
 
 const localVideo = ref(null);
+const remoteVideos = ref([]);
 const roomId = "live-class-room-123";
 const socket = io("https://d-live.onrender.com/one-to-many", {
   transports: ["websocket"],
@@ -24,7 +25,11 @@ async function startLocalStream() {
 
 function createPeerConnection(targetId) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
+
+  // Attach local stream tracks to the PC
   localStream?.getTracks().forEach((track) => pc.addTrack(track, localStream));
+
+  // Listen for ICE candidates and send them to the other peer
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("ice-candidate", {
@@ -33,6 +38,15 @@ function createPeerConnection(targetId) {
       });
     }
   };
+
+  // Listen for remote tracks from the viewer
+  pc.ontrack = (event) => {
+    // Add the remote stream if it is not already added.
+    if (!remoteVideos.value.find((v) => v.id === targetId)) {
+      remoteVideos.value.push({ id: targetId, stream: event.streams[0] });
+    }
+  };
+
   peerConnections[targetId] = pc;
   return pc;
 }
@@ -59,6 +73,12 @@ onMounted(async () => {
     const pc = peerConnections[senderId];
     if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
   });
+  socket.on("user-left", (id) => {
+    const pc = peerConnections[id];
+    if (pc) pc.close();
+    delete peerConnections[id];
+    remoteVideos.value = remoteVideos.value.filter((v) => v.id !== id);
+  });
 });
 
 onUnmounted(() => {
@@ -73,5 +93,26 @@ onUnmounted(() => {
   <div>
     <h2 class="text-lg font-bold mb-2">🎥 Broadcaster Stream</h2>
     <video ref="localVideo" autoplay muted playsinline class="w-full rounded shadow" />
+    <div class="mt-4">
+      <h3 class="text-md font-semibold mb-2">Remote Viewer Streams:</h3>
+      <div
+        class="grid gap-4"
+        :class="{
+          'grid-cols-1': remoteVideos.length === 1,
+          'grid-cols-2': remoteVideos.length === 2,
+          'grid-cols-3': remoteVideos.length >= 3 && remoteVideos.length < 5,
+          'grid-cols-4': remoteVideos.length >= 5,
+        }"
+      >
+        <video
+          v-for="video in remoteVideos"
+          :key="video.id"
+          autoplay
+          playsinline
+          class="w-full aspect-video rounded border shadow"
+          :srcObject="video.stream"
+        ></video>
+      </div>
+    </div>
   </div>
 </template>
