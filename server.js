@@ -99,11 +99,11 @@ oneToManyHandler(oneToManyNamespace);
 
 // API endpoints for frontend to fetch WebSocket URLs
 app.get("/api/v1/live/one-to-one", (req, res) => {
-  res.json({ socketUrl: "https://dlive.degantechnologies.com/one-to-one" });
+  res.json({ socketUrl: "https://d-live.onrender.com/one-to-one" });
 });
 
 app.get("/api/v1/live/one-to-many", (req, res) => {
-  res.json({ socketUrl: "https://dlive.degantechnologies.com/one-to-many" });
+  res.json({ socketUrl: "https://d-live.onrender.com/one-to-many" });
 });
 
 // Start the server
