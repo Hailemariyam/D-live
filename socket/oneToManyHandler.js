@@ -8,11 +8,11 @@ function oneToManyHandler(io) {
       socket.role = role;
 
       if (role === "viewer") {
-        // Notify the broadcaster that a new viewer has joined
-        const clients = Array.from(io.sockets.adapter.rooms.get(classId) || []);
-        const broadcaster = clients.find((id) => io.sockets.sockets.get(id)?.role === "broadcaster");
+        // Use socket.nsp to access the namespace adapter
+        const clients = Array.from(socket.nsp.adapter.rooms.get(classId) || []);
+        const broadcaster = clients.find((id) => socket.nsp.sockets.get(id)?.role === "broadcaster");
         if (broadcaster) {
-          io.to(broadcaster).emit("viewer-joined", { viewerId: socket.id });
+          socket.to(broadcaster).emit("viewer-joined", { viewerId: socket.id });
         }
       }
 
@@ -26,17 +26,17 @@ function oneToManyHandler(io) {
 
     // Broadcaster sends offer to a specific viewer
     socket.on("offer", ({ viewerId, offer }) => {
-      io.to(viewerId).emit("offer", { offer, senderId: socket.id });
+      socket.nsp.to(viewerId).emit("offer", { offer, senderId: socket.id });
     });
 
     // Viewer sends answer back to broadcaster
     socket.on("answer", ({ broadcasterId, answer }) => {
-      io.to(broadcasterId).emit("answer", { answer, senderId: socket.id });
+      socket.nsp.to(broadcasterId).emit("answer", { answer, senderId: socket.id });
     });
 
     // ICE candidate exchange
     socket.on("ice-candidate", ({ targetId, candidate }) => {
-      io.to(targetId).emit("ice-candidate", {
+      socket.nsp.to(targetId).emit("ice-candidate", {
         candidate,
         senderId: socket.id,
       });
