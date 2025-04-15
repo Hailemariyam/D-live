@@ -3,153 +3,126 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
 
 const localVideo = ref(null);
-const remoteVideo = ref(null);
+const remoteVideos = ref({});
 
-// Connect to the one-to-many namespace
+// Configs
+const classId = "class-room-123";
+const role = "host"; // or "viewer"
 const socket = io("https://d-live.onrender.com/one-to-many", {
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
 
-// Unique class identifier for the live session
-const classId = "class-room-123";
-
-// Define role: "host" for the instructor, "viewer" for students
-// Adjust this variable as needed per session
-const role = "host";
-
-let localStream;
-let peerConnection;
-let iceCandidateQueue = [];
-let isRemoteDescriptionSet = false;
-
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-// Capture the local video stream
+let localStream;
+const peerConnections = new Map(); // socketId -> RTCPeerConnection
+const iceCandidateQueues = new Map(); // socketId -> [candidates]
+
 async function startLocalStream() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     localVideo.value.srcObject = localStream;
-  } catch (error) {
-    console.error("Error accessing media devices:", error);
+  } catch (err) {
+    console.error("❌ Media error:", err);
   }
 }
 
-// Create RTCPeerConnection and add local media tracks
-function createPeerConnection() {
-  peerConnection = new RTCPeerConnection(ICE_SERVERS);
+function createPeerConnection(peerId) {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
 
-  localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
-  peerConnection.ontrack = (event) => {
-    remoteVideo.value.srcObject = event.streams[0];
-  };
-
-  peerConnection.onicecandidate = (event) => {
+  pc.onicecandidate = (event) => {
     if (event.candidate) {
-      socket.emit("ice-candidate", { classId, candidate: event.candidate });
+      socket.emit("ice-candidate", { classId, candidate: event.candidate, targetId: peerId });
     }
   };
+
+  pc.ontrack = (event) => {
+    remoteVideos.value[peerId] = event.streams[0];
+  };
+
+  peerConnections.set(peerId, pc);
+  return pc;
 }
 
-// For the host: Create and send an offer so viewers can answer
-async function startCall() {
-  createPeerConnection();
+socket.on("host-joined", (hostId) => {
+  console.log("Host joined:", hostId);
+});
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-  socket.emit("offer", { classId, offer });
-}
+socket.on("user-joined", async (viewerId) => {
+  if (role === "host") {
+    console.log("Viewer joined:", viewerId);
+    const pc = createPeerConnection(viewerId);
 
-// Handle incoming offer (for viewers) or answer (for host)
-socket.on("offer", async ({ offer, senderId }) => {
-  console.log("Received offer from host:", senderId);
-  // For viewers, create a connection if not already set up
-  if (!peerConnection) createPeerConnection();
-
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-  isRemoteDescriptionSet = true;
-
-  // Buffer and add ICE candidates
-  while (iceCandidateQueue.length > 0) {
-    const candidate = iceCandidateQueue.shift();
-    try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (error) {
-      console.error("Error adding buffered ICE candidate", error);
-    }
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("offer", { classId, offer, targetId: viewerId });
   }
+});
 
-  // For viewers, answer back to host
+socket.on("offer", async ({ offer, senderId }) => {
   if (role === "viewer") {
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit("answer", { classId, answer });
+    const pc = createPeerConnection(senderId);
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit("answer", { classId, answer, targetId: senderId });
   }
 });
 
 socket.on("answer", async ({ answer, senderId }) => {
-  console.log("Received answer from viewer:", senderId);
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-  isRemoteDescriptionSet = true;
+  const pc = peerConnections.get(senderId);
+  if (pc) {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  }
 });
 
-socket.on("ice-candidate", async ({ candidate }) => {
-  if (isRemoteDescriptionSet) {
-    try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (error) {
-      console.error("Error adding received ICE candidate", error);
-    }
+socket.on("ice-candidate", async ({ candidate, senderId }) => {
+  const pc = peerConnections.get(senderId);
+  if (pc && pc.remoteDescription) {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
   } else {
-    iceCandidateQueue.push(candidate);
+    if (!iceCandidateQueues.has(senderId)) {
+      iceCandidateQueues.set(senderId, []);
+    }
+    iceCandidateQueues.get(senderId).push(candidate);
   }
 });
 
-// Listening for new participants joining
-socket.on("viewer-joined", async (userId) => {
-  console.log(`Viewer joined: ${userId}`);
-  // For host, start call upon first viewer joining if not already started
-  if (role === "host" && !peerConnection) {
-    await startCall();
-  }
-});
-
-// Optionally, notify when host joins (for viewers)
-socket.on("host-joined", async (userId) => {
-  console.log(`Host joined: ${userId}`);
-  // Viewers might want to await the offer coming next
-});
-
-// Leave class and cleanup
 onMounted(async () => {
   await startLocalStream();
-  // Emit join event along with role information
   socket.emit("join-class", { classId, role });
 });
 
 onUnmounted(() => {
   socket.emit("leave-class", { classId });
   socket.disconnect();
-  if (peerConnection) peerConnection.close();
+
+  for (const pc of peerConnections.values()) {
+    pc.close();
+  }
+
+  peerConnections.clear();
 });
 </script>
 
 <template>
   <div class="p-4">
-    <h2 class="text-xl font-bold">Live Class ({{
-      role === "host" ? "Host" : "Viewer"
-    }})</h2>
-    <div class="flex gap-4">
+    <h2 class="text-xl font-bold">Live Class ({{ role }})</h2>
+    <div class="grid md:grid-cols-2 gap-4">
       <div>
         <h3 class="text-lg font-semibold">Local Stream</h3>
-        <video ref="localVideo" autoplay playsinline muted class="w-full border rounded"></video>
+        <video ref="localVideo" autoplay playsinline muted class="w-full rounded border"></video>
       </div>
-      <div>
-        <h3 class="text-lg font-semibold">Remote Stream</h3>
-        <video ref="remoteVideo" autoplay playsinline class="w-full border rounded"></video>
+      <div v-for="(stream, id) in remoteVideos" :key="id">
+        <h3 class="text-lg font-semibold">Remote Stream - {{ id }}</h3>
+        <video :ref="el => (el ? (el.srcObject = stream) : null)" autoplay playsinline class="w-full rounded border" />
       </div>
     </div>
   </div>

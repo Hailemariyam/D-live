@@ -13,31 +13,43 @@ function oneToManyHandler(io) {
       if (role === "host") {
         io.to(classId).emit("host-joined", socket.id);
       } else {
-        io.to(classId).emit("user-joined", socket.id); // also triggers offer flow
+        // Notify only the host about the new viewer
+        const socketsInRoom = io.sockets.adapter.rooms.get(classId) || new Set();
+        for (const socketId of socketsInRoom) {
+          const s = io.sockets.sockets.get(socketId);
+          if (s?.data?.role === "host") {
+            io.to(s.id).emit("user-joined", socket.id); // tell host about new viewer
+          }
+        }
       }
     });
 
-    socket.on("offer", ({ classId, offer }) => {
-      console.log(`📡 Offer from ${socket.id} in class ${classId}`);
-      socket.to(classId).emit("offer", { offer, senderId: socket.id });
+    // Receive offer from host, forward only to the specified targetId
+    socket.on("offer", ({ classId, offer, targetId }) => {
+      console.log(`📡 Offer from ${socket.id} to ${targetId} in class ${classId}`);
+      io.to(targetId).emit("offer", { offer, senderId: socket.id });
     });
 
-    socket.on("answer", ({ classId, answer }) => {
-      console.log(`📡 Answer from ${socket.id} in class ${classId}`);
-      socket.to(classId).emit("answer", { answer, senderId: socket.id });
+    // Receive answer from viewer, send only to host
+    socket.on("answer", ({ classId, answer, targetId }) => {
+      console.log(`📡 Answer from ${socket.id} to ${targetId} in class ${classId}`);
+      io.to(targetId).emit("answer", { answer, senderId: socket.id });
     });
 
-    socket.on("ice-candidate", ({ classId, candidate }) => {
-      console.log(`❄️ ICE candidate from ${socket.id} in class ${classId}`);
-      socket.to(classId).emit("ice-candidate", { candidate });
+    // ICE candidate from any peer to another
+    socket.on("ice-candidate", ({ classId, candidate, targetId }) => {
+      console.log(`❄️ ICE candidate from ${socket.id} to ${targetId} in class ${classId}`);
+      io.to(targetId).emit("ice-candidate", { candidate, senderId: socket.id });
     });
 
+    // Leave class
     socket.on("leave-class", ({ classId }) => {
       console.log(`🚪 ${socket.id} left class ${classId}`);
       socket.leave(classId);
       io.to(classId).emit("user-left", socket.id);
     });
 
+    // Disconnect
     socket.on("disconnect", () => {
       const classId = socket.data?.classId;
       if (classId) {
