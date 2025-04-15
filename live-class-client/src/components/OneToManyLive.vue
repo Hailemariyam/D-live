@@ -1,224 +1,130 @@
-<template>
-  <div class="p-4">
-    <h2 class="text-2xl font-bold mb-4">DLive – One-to-Many Demo</h2>
-    <div class="mb-4">
-      <label class="font-semibold mr-2">Select Role:</label>
-      <select v-model="role" class="border p-1 rounded">
-        <option value="host">Host</option>
-        <option value="viewer">Viewer</option>
-      </select>
-    </div>
-    <div v-if="role === 'host'" class="mb-6">
-      <h3 class="text-xl font-semibold mb-2">🎥 Host Camera</h3>
-      <video ref="localVideo" autoplay playsinline muted class="w-full border rounded mb-2" />
-      <div>
-        <h4 class="font-semibold">Connected Viewers:</h4>
-        <ul class="list-disc list-inside">
-          <li v-for="id in connectedViewers" :key="id">{{ id }}</li>
-        </ul>
-      </div>
-    </div>
-    <div v-if="role === 'viewer'" class="mb-6">
-      <h3 class="text-xl font-semibold mb-2">📺 Host Stream</h3>
-      <video ref="remoteVideo" autoplay playsinline controls class="w-full border rounded" />
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
 
-// Choose your role: "host" or "viewer"
-const role = ref("host");
 const localVideo = ref(null);
-const remoteVideo = ref(null);
-const connectedViewers = reactive([]);
-const socket = io("https://dlive.degantechnologies.com/one-to-many", {
+const remoteVideos = ref([]);
+const isBroadcaster = ref(true); // Toggle manually for testing. In production, set via login/URL param.
+const roomId = "live-class-room-123";
+
+// Socket setup for one-to-many namespace
+const socket = io("https://d-live.onrender.com/one-to-many", {
   transports: ["websocket"],
   withCredentials: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
 });
 
-socket.on("connect", () => {
-  console.log("WebSocket connected:", socket.id);
-});
-socket.on("connect_error", (err) => {
-  console.error("Connection error:", err);
-});
-socket.on("disconnect", (reason) => {
-  console.warn("WebSocket disconnected:", reason);
-});
-
-const classId = "class-room-123";
 let localStream;
-const peerConnections = {};
-let hostId = null;
-let peerConnection = null;
+const peerConnections = {}; // key: socketId, value: RTCPeerConnection
+const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-const ICE_SERVERS = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
-
-// HOST LOGIC
 async function startLocalStream() {
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-    localVideo.value.srcObject = localStream;
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    if (isBroadcaster.value) {
+      localVideo.value.srcObject = localStream;
+    }
   } catch (error) {
-    console.error("Error accessing local media", error);
+    console.error("Media error:", error);
   }
 }
 
-function createPeerConnection(viewerId) {
+function createPeerConnection(targetId) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
-  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+
+  if (isBroadcaster.value) {
+    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+  }
+
   pc.onicecandidate = (event) => {
     if (event.candidate) {
-      socket.emit("ice-candidate", {
-        classId,
-        candidate: event.candidate,
-        targetId: viewerId,
-      });
+      socket.emit("ice-candidate", { targetId, candidate: event.candidate });
     }
   };
-  peerConnections[viewerId] = pc;
+
+  pc.ontrack = (event) => {
+    let existing = remoteVideos.value.find(v => v.id === targetId);
+    if (!existing) {
+      remoteVideos.value.push({ id: targetId, stream: event.streams[0] });
+    }
+  };
+
+  peerConnections[targetId] = pc;
   return pc;
 }
 
-async function handleNewViewer(viewerId) {
-  connectedViewers.push(viewerId);
+// BROWSER ROLE: BROADCASTER
+async function handleViewerJoined({ viewerId }) {
   const pc = createPeerConnection(viewerId);
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  socket.emit("offer", {
-    classId,
-    offer,
-    targetId: viewerId,
-  });
+  socket.emit("offer", { viewerId, offer });
 }
 
-// VIEWER LOGIC
-function createViewerPC() {
-  const pc = new RTCPeerConnection(ICE_SERVERS);
-  pc.ontrack = (event) => {
-    remoteVideo.value.srcObject = event.streams[0];
-  };
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      socket.emit("ice-candidate", {
-        classId,
-        candidate: event.candidate,
-        targetId: hostId,
-      });
-    }
-  };
-  return pc;
-}
-
-// SOCKET EVENTS
-socket.on("host-joined", (hostSocketId) => {
-  if (role.value === "viewer") {
-    hostId = hostSocketId;
-    console.log("Viewer: Host joined. hostId:", hostId);
-  }
-});
-
-socket.on("user-joined", async (viewerId) => {
-  if (role.value === "host") {
-    console.log("Host: New viewer joined:", viewerId);
-    await handleNewViewer(viewerId);
-  }
-});
-
+// BROWSER ROLE: VIEWER
 socket.on("offer", async ({ offer, senderId }) => {
-  if (role.value === "viewer") {
-    hostId = senderId;
-    peerConnection = createViewerPC();
-    console.log("Viewer: Received offer from host:", hostId);
-    try {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    } catch (error) {
-      console.error("Error setting remote description:", error);
-    }
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    console.log("Viewer: Sending answer back to host");
-    socket.emit("answer", {
-      classId,
-      answer,
-      targetId: senderId,
-    });
+  const pc = createPeerConnection(senderId);
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit("answer", { broadcasterId: senderId, answer });
+});
+
+// Shared: Receive answer (only for broadcaster)
+socket.on("answer", async ({ answer, senderId }) => {
+  const pc = peerConnections[senderId];
+  if (pc) {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
   }
 });
 
-socket.on("answer", async ({ senderId, answer }) => {
-  if (role.value === "host") {
-    console.log("Host: Received answer from viewer:", senderId);
-    const pc = peerConnections[senderId];
-    if (pc) {
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      } catch (error) {
-        console.error("Error setting remote description on host:", error);
-      }
-    }
+// Shared: Receive ICE candidates
+socket.on("ice-candidate", async ({ candidate, senderId }) => {
+  const pc = peerConnections[senderId];
+  if (pc && candidate) {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
   }
 });
 
-socket.on("ice-candidate", async ({ senderId, candidate }) => {
-  if (role.value === "host") {
-    const pc = peerConnections[senderId];
-    if (pc) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error("Host ICE error:", err);
-      }
-    }
-  } else if (role.value === "viewer" && senderId === hostId && peerConnection) {
-    try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (err) {
-      console.error("Viewer ICE error:", err);
-    }
-  }
-});
-
-socket.on("user-left", (viewerId) => {
-  if (role.value === "host") {
-    const pc = peerConnections[viewerId];
-    if (pc) {
-      pc.close();
-      delete peerConnections[viewerId];
-    }
-    const index = connectedViewers.indexOf(viewerId);
-    if (index !== -1) connectedViewers.splice(index, 1);
-  }
-});
-
-// LIFECYCLE
 onMounted(async () => {
-  if (role.value === "host") {
-    await startLocalStream();
+  await startLocalStream();
+  socket.emit("join-class", { classId: roomId, role: isBroadcaster.value ? "broadcaster" : "viewer" });
+
+  if (isBroadcaster.value) {
+    socket.on("viewer-joined", handleViewerJoined);
   }
-  socket.emit("join-class", { classId, role: role.value });
 });
 
 onUnmounted(() => {
-  socket.emit("leave-class", { classId });
+  socket.emit("leave-class", { classId: roomId });
   socket.disconnect();
+
   Object.values(peerConnections).forEach((pc) => pc.close());
-  if (peerConnection) peerConnection.close();
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+  }
 });
 </script>
+<template>
+  <div class="p-4">
+    <h2 class="text-xl font-bold">One-to-Many Video Call</h2>
 
-<style scoped>
-select {
-  min-width: 120px;
-}
-</style>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <div v-if="isBroadcaster">
+        <h3 class="text-lg font-semibold">Broadcaster</h3>
+        <video ref="localVideo" autoplay playsinline muted class="w-full border rounded"></video>
+      </div>
+
+      <div v-else>
+        <h3 class="text-lg font-semibold">Viewer</h3>
+        <video
+          v-for="viewer in remoteVideos"
+          :key="viewer.id"
+          :srcObject="viewer.stream"
+          autoplay
+          playsinline
+          class="w-full border rounded mb-2"
+        ></video>
+      </div>
+    </div>
+  </div>
+</template>
