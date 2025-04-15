@@ -158,7 +158,7 @@ onUnmounted(() => {
 
     <!-- Toggle Buttons -->
     <div class="flex justify-center gap-4 mb-6">
-      <button
+      <!-- <button
         @click="currentView = 'one-to-one'"
         :class="[
           'px-4 py-2 rounded font-medium',
@@ -168,7 +168,7 @@ onUnmounted(() => {
         ]"
       >
         One-to-One
-      </button>
+      </button> -->
       <button
         @click="currentView = 'one-to-many'"
         :class="[
@@ -183,10 +183,10 @@ onUnmounted(() => {
     </div>
 
     <!-- Dynamic Component Rendering -->
-    <div v-if="currentView === 'one-to-one'">
+    <!-- <div v-if="currentView === 'one-to-one'">
       <h2 class="text-xl font-semibold mb-2">One-to-One Video Call</h2>
       <OneToOneLive />
-    </div>
+    </div> -->
 
     <div v-if="currentView === 'one-to-many'">
       <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
@@ -197,7 +197,7 @@ onUnmounted(() => {
 
 <script setup>
 import { ref } from "vue";
-import OneToOneLive from "./OneToOneLive.vue";
+// import OneToOneLive from "./OneToOneLive.vue";
 import OneToManyLive from "./OneToManyLive.vue";
 
 // Reactive state for which view to show
