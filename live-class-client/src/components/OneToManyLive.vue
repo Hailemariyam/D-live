@@ -1,3 +1,36 @@
+<template>
+  <div class="p-4">
+    <h2 class="text-2xl font-bold mb-4">DLive – One-to-Many Demo</h2>
+
+    <!-- Role Selector -->
+    <div class="mb-4">
+      <label class="font-semibold mr-2">Select Role:</label>
+      <select v-model="role" class="border p-1 rounded">
+        <option value="host">Host</option>
+        <option value="viewer">Viewer</option>
+      </select>
+    </div>
+
+    <!-- Host UI -->
+    <div v-if="role === 'host'" class="mb-6">
+      <h3 class="text-xl font-semibold mb-2">🎥 Host Camera</h3>
+      <video ref="localVideo" autoplay playsinline muted class="w-full border rounded mb-2" />
+      <div>
+        <h4 class="font-semibold">Connected Viewers:</h4>
+        <ul class="list-disc list-inside">
+          <li v-for="id in connectedViewers" :key="id">{{ id }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Viewer UI -->
+    <div v-if="role === 'viewer'" class="mb-6">
+      <h3 class="text-xl font-semibold mb-2">📺 Host Stream</h3>
+      <video ref="remoteVideo" autoplay playsinline controls class="w-full border rounded" />
+    </div>
+  </div>
+</template>
+
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from "vue";
 import { io } from "socket.io-client";
@@ -5,26 +38,43 @@ import { io } from "socket.io-client";
 // Choose your role: "host" or "viewer"
 const role = ref("host");
 
+// References for video elements
 const localVideo = ref(null);
 const remoteVideo = ref(null);
+
+// For host: list of connected viewer IDs.
 const connectedViewers = reactive([]);
+
+// Establish the socket connection with reconnection options
 const socket = io("https://d-live.onrender.com/one-to-many", {
   transports: ["websocket"],
   withCredentials: true,
+  reconnectionAttempts: 5,    // Try 5 reconnection attempts
+  reconnectionDelay: 1000     // 1 second delay between attempts
 });
+
+// Log connection events for debugging
+socket.on("connect", () => {
+  console.log("WebSocket connected:", socket.id);
+});
+socket.on("connect_error", (err) => {
+  console.error("Connection error:", err);
+});
+socket.on("disconnect", (reason) => {
+  console.warn("WebSocket disconnected:", reason);
+});
+
 const classId = "class-room-123";
 let localStream;
-const peerConnections = {}; // For host: multiple peer connections to viewers
-let hostId = null; // For viewer: store host socket ID
-let peerConnection = null; // For viewer: a single connection
+const peerConnections = {}; // For host: key is viewerId → RTCPeerConnection
+let hostId = null;          // For viewer: store host socket ID
+let peerConnection = null;  // For viewer: single peer connection
 
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-/* =====================
-   HOST LOGIC
-===================== */
+/* ========= HOST LOGIC ========= */
 async function startLocalStream() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -40,6 +90,7 @@ async function startLocalStream() {
 function createPeerConnection(viewerId) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
 
+  // Add all local tracks to the connection.
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
   pc.onicecandidate = (event) => {
@@ -52,7 +103,7 @@ function createPeerConnection(viewerId) {
     }
   };
 
-  // Note: ontrack is not needed on the host side in one-to-many since viewers do not send media
+  // No ontrack on host since viewers do not send media.
   peerConnections[viewerId] = pc;
   return pc;
 }
@@ -70,11 +121,11 @@ async function handleNewViewer(viewerId) {
   });
 }
 
-/* =====================
-   VIEWER LOGIC
-===================== */
+/* ========= VIEWER LOGIC ========= */
 function createViewerPC() {
   const pc = new RTCPeerConnection(ICE_SERVERS);
+
+  // When receiving a track from the host, render it in the video element.
   pc.ontrack = (event) => {
     remoteVideo.value.srcObject = event.streams[0];
   };
@@ -92,9 +143,7 @@ function createViewerPC() {
   return pc;
 }
 
-/* =====================
-   SOCKET EVENTS
-===================== */
+/* ========= SOCKET EVENTS ========= */
 socket.on("host-joined", (hostSocketId) => {
   if (role.value === "viewer") {
     hostId = hostSocketId;
@@ -168,9 +217,7 @@ socket.on("user-left", (viewerId) => {
   }
 });
 
-/* =====================
-   LIFECYCLE
-===================== */
+/* ========= LIFECYCLE ========= */
 onMounted(async () => {
   if (role.value === "host") {
     await startLocalStream();
@@ -181,44 +228,10 @@ onMounted(async () => {
 onUnmounted(() => {
   socket.emit("leave-class", { classId });
   socket.disconnect();
-
   Object.values(peerConnections).forEach((pc) => pc.close());
   if (peerConnection) peerConnection.close();
 });
 </script>
-
-<template>
-  <div class="p-4">
-    <h2 class="text-2xl font-bold mb-4">DLive – One-to-Many Demo</h2>
-
-    <!-- Role Selector -->
-    <div class="mb-4">
-      <label class="font-semibold mr-2">Select Role:</label>
-      <select v-model="role" class="border p-1 rounded">
-        <option value="host">Host</option>
-        <option value="viewer">Viewer</option>
-      </select>
-    </div>
-
-    <!-- Host UI -->
-    <div v-if="role === 'host'" class="mb-6">
-      <h3 class="text-xl font-semibold mb-2">🎥 Host Camera</h3>
-      <video ref="localVideo" autoplay playsinline muted class="w-full border rounded mb-2" />
-      <div>
-        <h4 class="font-semibold">Connected Viewers:</h4>
-        <ul class="list-disc list-inside">
-          <li v-for="id in connectedViewers" :key="id">{{ id }}</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Viewer UI -->
-    <div v-if="role === 'viewer'" class="mb-6">
-      <h3 class="text-xl font-semibold mb-2">📺 Host Stream</h3>
-      <video ref="remoteVideo" autoplay playsinline controls class="w-full border rounded" />
-    </div>
-  </div>
-</template>
 
 <style scoped>
 select {
