@@ -152,32 +152,59 @@ onUnmounted(() => {
   </div>
 </template> -->
 
-
 <template>
   <div class="live-container p-4">
-    <h1 class="mb-6 text-2xl font-bold text-center">Degan Live: One-to-One & One-to-Many</h1>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <section>
-        <h2 class="text-xl font-semibold mb-2">One-to-One Video Call</h2>
-        <!-- One-to-One Component -->
-        <OneToOneLive />
-      </section>
-      <section>
-        <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
-        <!-- One-to-Many Component -->
-        <OneToManyLive />
-      </section>
+    <h1 class="mb-6 text-2xl font-bold text-center">Degan Live</h1>
+
+    <!-- Toggle Buttons -->
+    <div class="flex justify-center gap-4 mb-6">
+      <button
+        @click="currentView = 'one-to-one'"
+        :class="[
+          'px-4 py-2 rounded font-medium',
+          currentView === 'one-to-one'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+        ]"
+      >
+        One-to-One
+      </button>
+      <button
+        @click="currentView = 'one-to-many'"
+        :class="[
+          'px-4 py-2 rounded font-medium',
+          currentView === 'one-to-many'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+        ]"
+      >
+        One-to-Many
+      </button>
+    </div>
+
+    <!-- Dynamic Component Rendering -->
+    <div v-if="currentView === 'one-to-one'">
+      <h2 class="text-xl font-semibold mb-2">One-to-One Video Call</h2>
+      <OneToOneLive />
+    </div>
+
+    <div v-if="currentView === 'one-to-many'">
+      <h2 class="text-xl font-semibold mb-2">Live Class (One-to-Many)</h2>
+      <OneToManyLive />
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import OneToOneLive from "./OneToOneLive.vue";
 import OneToManyLive from "./OneToManyLive.vue";
+
+// Reactive state for which view to show
+const currentView = ref("one-to-one");
 </script>
 
 <style scoped>
-/* You can add more styles as needed */
 .live-container {
   max-width: 1200px;
   margin: 0 auto;
