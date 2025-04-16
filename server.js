@@ -84,34 +84,6 @@ const io = new Server(server, {
 const oneToOneHandler = require("./socket/oneToOneHandler");
 const oneToManyHandler = require("./socket/oneToManyHandler");
 
-// Serve the frontend Vue app build
-const frontendPath = path.join(__dirname, "live-class-client/dist");
-app.use(express.static(frontendPath));
-
-// Frontend fallback for Vue Router
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
-});
-
-
-
-
-// Set up Socket.IO namespaces
-const oneToOneNamespace = io.of("/one-to-one");
-oneToOneHandler(oneToOneNamespace);
-
-const oneToManyNamespace = io.of("/one-to-many");
-oneToManyHandler(oneToManyNamespace);
-
-// API endpoint for frontend to fetch WebSocket URLs
-app.get("/api/v1/live/one-to-one", (req, res) => {
-  res.json({ socketUrl: "https://d-live.onrender.com/one-to-one" });
-});
-
-app.get("/api/v1/live/one-to-many", (req, res) => {
-  res.json({ socketUrl: "https://d-live.onrender.com/one-to-many" });
-});
-
 /**
  * API endpoint for generating a temporary TURN token from Twilio.
  * Ensure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables are set.
@@ -130,6 +102,33 @@ app.get("/api/v1/turn", async (req, res) => {
     res.status(500).json({ error: "Error generating TURN token", details: error.message });
   }
 });
+
+// Serve the frontend Vue app build
+const frontendPath = path.join(__dirname, "live-class-client/dist");
+app.use(express.static(frontendPath));
+
+// Frontend fallback for Vue Router
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+
+// Set up Socket.IO namespaces
+const oneToOneNamespace = io.of("/one-to-one");
+oneToOneHandler(oneToOneNamespace);
+
+const oneToManyNamespace = io.of("/one-to-many");
+oneToManyHandler(oneToManyNamespace);
+
+// API endpoint for frontend to fetch WebSocket URLs
+app.get("/api/v1/live/one-to-one", (req, res) => {
+  res.json({ socketUrl: "https://d-live.onrender.com/one-to-one" });
+});
+
+app.get("/api/v1/live/one-to-many", (req, res) => {
+  res.json({ socketUrl: "https://d-live.onrender.com/one-to-many" });
+});
+
 
 // Start the HTTP server
 const PORT = process.env.PORT || 8080;
