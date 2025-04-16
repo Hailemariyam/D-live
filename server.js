@@ -60,8 +60,6 @@
 
 // server.js
 
-// server.js
-
 const express = require("express");
 const http = require("http");
 const path = require("path");
@@ -86,6 +84,18 @@ const io = new Server(server, {
 const oneToOneHandler = require("./socket/oneToOneHandler");
 const oneToManyHandler = require("./socket/oneToManyHandler");
 
+// Serve the frontend Vue app build
+const frontendPath = path.join(__dirname, "live-class-client/dist");
+app.use(express.static(frontendPath));
+
+// Frontend fallback for Vue Router
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+
+
+
 // Set up Socket.IO namespaces
 const oneToOneNamespace = io.of("/one-to-one");
 oneToOneHandler(oneToOneNamespace);
@@ -93,8 +103,7 @@ oneToOneHandler(oneToOneNamespace);
 const oneToManyNamespace = io.of("/one-to-many");
 oneToManyHandler(oneToManyNamespace);
 
-// --- API Endpoints ---
-// Endpoint for live socket URLs
+// API endpoint for frontend to fetch WebSocket URLs
 app.get("/api/v1/live/one-to-one", (req, res) => {
   res.json({ socketUrl: "https://d-live.onrender.com/one-to-one" });
 });
@@ -103,7 +112,10 @@ app.get("/api/v1/live/one-to-many", (req, res) => {
   res.json({ socketUrl: "https://d-live.onrender.com/one-to-many" });
 });
 
-// Twilio TURN token endpoint (make sure your environment variables are set)
+/**
+ * API endpoint for generating a temporary TURN token from Twilio.
+ * Ensure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables are set.
+ */
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
@@ -111,24 +123,12 @@ const client = twilio(accountSid, authToken);
 app.get("/api/v1/turn", async (req, res) => {
   try {
     const token = await client.tokens.create();
+    // Optionally, you could customize the returned data.
     res.json({ iceServers: token.iceServers });
   } catch (error) {
     console.error("Error creating TURN token:", error);
-    res
-      .status(500)
-      .json({ error: "Error generating TURN token", details: error.message });
+    res.status(500).json({ error: "Error generating TURN token", details: error.message });
   }
-});
-
-// --- Serve Static Files ---
-// Serve your frontend (Vue app build)
-const frontendPath = path.join(__dirname, "live-class-client/dist");
-app.use(express.static(frontendPath));
-
-// Frontend fallback for Vue Router
-// This should come AFTER all API endpoints have been defined.
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 // Start the HTTP server
