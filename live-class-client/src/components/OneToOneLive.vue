@@ -4,23 +4,42 @@ import { io } from "socket.io-client";
 
 const localVideo = ref(null);
 const remoteVideo = ref(null);
+let localStream, peerConnection;
+let iceCandidateQueue = [];
+let isRemoteDescriptionSet = false;
 
-// Connect to the one-to-one namespace
+// Start with an empty ICE configuration; we'll populate it from our TURN token endpoint.
+let ICE_SERVERS = {
+  iceServers: [] // will be set after retrieving from Twilio endpoint
+};
+
+// Create a socket instance
 const socket = io("https://d-live.onrender.com/one-to-one", {
   transports: ["websocket", "polling"],
   withCredentials: true,
 });
 
-// Use a room identifier for the one-to-one call. This could be a unique session ID.
+// You can use a room identifier for your call/session
 const roomId = "oneToOne-room-123";
-let localStream;
-let peerConnection;
-let iceCandidateQueue = [];
-let isRemoteDescriptionSet = false;
 
-const ICE_SERVERS = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+// Fetch the TURN token on component mount
+async function fetchTurnToken() {
+  try {
+    const res = await fetch("/api/v1/turn");
+    const data = await res.json();
+    console.log("TURN token data:", data);
+    // Use Twilio's iceServers if available; merge with your STUN as desired.
+    // For example, you can merge them with your fallback STUN:
+    ICE_SERVERS.iceServers = [
+      ...data.iceServers,
+      { urls: "stun:stun.l.google.com:19302" }
+    ];
+  } catch (error) {
+    console.error("Error fetching TURN token: ", error);
+    // Fallback to STUN-only configuration if necessary
+    ICE_SERVERS.iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+  }
+}
 
 // Capture the local media stream
 async function startLocalStream() {
@@ -104,6 +123,7 @@ socket.on("ice-candidate", async ({ candidate }) => {
 
 // Join room and start the call when a user joins the room
 onMounted(async () => {
+  await fetchTurnToken();
   await startLocalStream();
   socket.emit("join-class", { classId: roomId });
 

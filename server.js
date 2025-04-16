@@ -58,20 +58,21 @@
 // });
 
 
+// server.js
+
+// server.js
 
 const express = require("express");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
+const twilio = require("twilio");
 
-const oneToOneHandler = require("./socket/oneToOneHandler");
-const oneToManyHandler = require("./socket/oneToManyHandler");
-
-
+// Create Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Setup CORS for production domain
+// Initialize Socket.IO with CORS configuration for your production domain
 const io = new Server(server, {
   cors: {
     origin: ["https://dlive.degantechnologies.com"],
@@ -81,14 +82,9 @@ const io = new Server(server, {
   },
 });
 
-// Serve frontend (Vue app build)
-const frontendPath = path.join(__dirname, "live-class-client/dist");
-app.use(express.static(frontendPath));
-
-// Frontend fallback (for Vue Router)
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
-});
+// Import your socket handlers
+const oneToOneHandler = require("./socket/oneToOneHandler");
+const oneToManyHandler = require("./socket/oneToManyHandler");
 
 // Set up Socket.IO namespaces
 const oneToOneNamespace = io.of("/one-to-one");
@@ -97,7 +93,8 @@ oneToOneHandler(oneToOneNamespace);
 const oneToManyNamespace = io.of("/one-to-many");
 oneToManyHandler(oneToManyNamespace);
 
-// API endpoints for frontend to fetch WebSocket URLs
+// --- API Endpoints ---
+// Endpoint for live socket URLs
 app.get("/api/v1/live/one-to-one", (req, res) => {
   res.json({ socketUrl: "https://d-live.onrender.com/one-to-one" });
 });
@@ -106,7 +103,35 @@ app.get("/api/v1/live/one-to-many", (req, res) => {
   res.json({ socketUrl: "https://d-live.onrender.com/one-to-many" });
 });
 
-// Start the server
+// Twilio TURN token endpoint (make sure your environment variables are set)
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = twilio(accountSid, authToken);
+
+app.get("/api/v1/turn", async (req, res) => {
+  try {
+    const token = await client.tokens.create();
+    res.json({ iceServers: token.iceServers });
+  } catch (error) {
+    console.error("Error creating TURN token:", error);
+    res
+      .status(500)
+      .json({ error: "Error generating TURN token", details: error.message });
+  }
+});
+
+// --- Serve Static Files ---
+// Serve your frontend (Vue app build)
+const frontendPath = path.join(__dirname, "live-class-client/dist");
+app.use(express.static(frontendPath));
+
+// Frontend fallback for Vue Router
+// This should come AFTER all API endpoints have been defined.
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+// Start the HTTP server
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`✅ Server listening on port ${PORT}`);
